@@ -11,11 +11,23 @@ import SwiftUI
 import Combine
 
 class MoviesViewController: UIViewController {
+    private let viewModel: MovieListViewModel
+    private var cancellable: Set<AnyCancellable> = []
+    
+    init(viewModel: MovieListViewModel) {
+        self.viewModel = viewModel
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
     
     lazy var searchBar: UISearchBar = {
         let searchBar = UISearchBar()
         searchBar.translatesAutoresizingMaskIntoConstraints = false
         searchBar.placeholder = "Search"
+        searchBar.delegate = self
         return searchBar
     }()
         
@@ -30,8 +42,15 @@ class MoviesViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        searchBar.delegate = self
+        //searchBar.delegate = self
         setupUI()
+        viewModel.$loadingComplete
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] completion in
+                if completion{
+                    self?.moviesTableView.reloadData()
+                }
+            }.store(in: &cancellable)
         
     }
         
@@ -65,20 +84,23 @@ class MoviesViewController: UIViewController {
 extension MoviesViewController: UITableViewDelegate, UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        10
+        viewModel.movives.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        
+        let movie = viewModel.movives[indexPath.row]
         let cell = tableView.dequeueReusableCell(withIdentifier: "MovieTableViewCell", for: indexPath)
         var content = cell.defaultContentConfiguration()
-        content.text = "Hello World"
+        content.text = movie.title
         cell.contentConfiguration = content
         return cell
     }
 }
 
 extension MoviesViewController: UISearchBarDelegate {
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        viewModel.setSearch(searchText: searchText)
+    }
     
 }
 
@@ -91,7 +113,7 @@ struct MoviesViewControllerRepresentable: UIViewControllerRepresentable {
     }
     
     func makeUIViewController(context: Context) -> MoviesViewController {
-        MoviesViewController()
+        MoviesViewController(viewModel: MovieListViewModel(httpClient: HTTPClient()))
     }
 }
 
